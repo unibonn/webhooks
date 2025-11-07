@@ -1,17 +1,16 @@
 <?php
 
-/* Copyright 2022-2025 University of Bonn
+/* Copyright 2025 University of Bonn
  *
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
 date_default_timezone_set('Europe/Berlin');
 
-// Not liked by BitBucket.
-$report_http_errors = false;
+$report_http_errors = true;
 include("./include/functions.php");
 
-$config = json_decode(file_get_contents('/etc/webhook/bitbucket.json'));
+$config = json_decode(file_get_contents('/etc/webhook/gitlab.json'));
 if ($config === null) {
   die("Invalid configuration!");
 }
@@ -33,9 +32,9 @@ if ($test_mode) {
 if ($server_env['REQUEST_METHOD'] !== 'POST') {
   die("Wrong request method, only POST accepted!");
 }
-$x_hub_signature = $server_env['HTTP_X_HUB_SIGNATURE'] ?? '';
-if ($x_hub_signature == '') {
-  die("No HTTP_X_HUB_SIGNATURE received!");
+$x_gitlab_token = $server_env['HTTP_X_GITLAB_TOKEN'] ?? '';
+if ($x_gitlab_token == '') {
+  die("No HTTP_X_GITLAB_TOKEN received!");
 }
 
 // Parse webhook to extract repository name and project key.
@@ -45,30 +44,39 @@ if ($webhook === null) {
 }
 
 // Extract repo information from webhook.
-$repository_name = extract_from_json($webhook, "repository->name", "Webhook", "string");
-$project_key = extract_from_json($webhook, "repository->project->key", "Webhook", "string");
+$project_full_path = extract_from_json($webhook, "project->path_with_namespace", "Webhook", "string");
+$repository_name = extract_from_json($webhook, "project->name", "Webhook", "string");
+$project_path_only = dirname($project_full_path);
+$repository_web_url = extract_from_json($webhook, "project->web_url", "Webhook", "string");
+
+// Consistency check.
+if (strcmp($project_path_only.'/'.$repository_name, $project_full_path) !== 0) {
+  fatal_error("Full project path with namespace (".$project_full_path.") does not match path (".$project_path_only.") plus repository name (".$repository_name."), ignoring hook!", "hook_validation");
+}
 
 // Extract corresponding secret key from configuration.
-$project_config = extract_from_json($config, $project_key, "Configuration::GetProject", "object");
+$project_config = extract_from_json($config, $project_path_only, "Configuration::GetProject", "object");
 $repository_config = extract_from_json($project_config, $repository_name, "Configuration::GetRepository", "object");
 $hook_secret = extract_from_json($repository_config, "secret", "Configuration::GetSecret", "string");
 
-// Check HMAC.
-validate_hmac($webhook_body, $hook_secret, $x_hub_signature);
+// Check secret.
+if (strcmp($hook_secret, $x_gitlab_token) !== 0) {
+  fatal_error("Could not validate secret token, ignoring hook!", "hook_validation");
+}
 
 // Extract further information of interest from the webhook.
-$event_key = extract_from_json($webhook, "eventKey", "Webhook", "string");
-if ($event_key !== "repo:refs_changed") {
-  fatal_error("Event key ".$event_key." not handled, ignoring hook!", "hook_validation");
+$object_kind = extract_from_json($webhook, "object_kind", "Webhook", "string");
+if ($object_kind !== "push") {
+  fatal_error("Object kind ".$object_kind." not handled, ignoring hook!", "hook_validation");
 }
-$changes_type = extract_from_json($webhook, "changes[0]->type", "Webhook", "string");
-if ($changes_type != "UPDATE") {
-  fatal_error("Changes type ".$changes_type." not handled, ignoring hook!", "hook_validation");
+$event_name = extract_from_json($webhook, "event_name", "Webhook", "string");
+if ($event_name != "push") {
+  fatal_error("Event name ".$event_name." not handled, ignoring hook!", "hook_validation");
 }
 
-$affected_ref_id = extract_from_json($webhook, "changes[0]->refId", "Webhook", "string");
+$affected_ref_id = extract_from_json($webhook, "ref", "Webhook", "string");
 if (!property_exists($repository_config, $affected_ref_id)) {
-  fatal_error("No configuration for refId ".$affected_ref_id." found in configuration for ".$project_key."/".$repository_name.", ignoring hook!", "config_check");
+  fatal_error("No configuration for refId ".$affected_ref_id." found in configuration for ".$project_full_path.", ignoring hook!", "config_check");
 }
 
 // Check configuration for command execution.
@@ -124,6 +132,7 @@ ignore_user_abort();
    Needed due to limited BitBucket response waiting time:
    - plugin.webhooks.socket.timeout, 20 s
    - plugin.com.atlassian.stash.plugin.hook.connectionTimeout, 10 s
+   May also be helpful for GitLab.
 */
 if ($background) {
   // Ensure output buffer is clean and zeroed, start fresh buffer.
@@ -135,10 +144,11 @@ if ($background) {
 $fail_cnt = 0;
 $out = "";
 $cmd_cnt = count($ref_cmds);
-printout($out, "Received valid hook for ".$project_key."/".$repository_name.":".$affected_ref_id.".");
+printout($out, "Received valid hook for ".$project_full_path.":".$affected_ref_id.".");
 if (!empty($description)) {
   printout($out, "Description: ".$description);
 }
+printout($out, "Repository Web URL: ".$repository_web_url);
 printout($out, "Executing ".$cmd_cnt." configured commands...");
 printout($out, "");
 
@@ -208,9 +218,9 @@ if ($fail_cnt == 0) {
   if (!empty($notice_mail)) {
     printout($out, "Sending out notice mail(s) to ".$notice_mail."...");
     $mail_to = $notice_mail;
-    $mail_subject = "[webhook][".$project_key."/".$repository_name.":".$affected_ref_id."] Successful BitBucket webhook execution (".$cmd_cnt." succeeded)";
+    $mail_subject = "[webhook][".$project_full_path.":".$affected_ref_id."] Successful GitLab webhook execution (".$cmd_cnt." succeeded)";
     $mail_body = "Dear expert(s),\r\n\r\n";
-    $mail_body .= $cmd_cnt." commands succeeded during execution of the webhook commands for ".$project_key."/".$repository_name.":".$affected_ref_id.".\r\n";
+    $mail_body .= $cmd_cnt." commands succeeded during execution of the webhook commands for ".$project_full_path.":".$affected_ref_id.".\r\n";
     $mail_body .= "You find the detailed output below.\r\n\r\n";
     $mail_body .= "--------------------------------------------------------------------------------\r\n";
     $mail_body .= $out."\r\n";
@@ -228,9 +238,9 @@ if ($fail_cnt == 0) {
   if (!empty($alert_mail)) {
     printout($out, "Sending out alert mail(s) to ".$alert_mail."...");
     $mail_to = $alert_mail;
-    $mail_subject = "[webhook][".$project_key."/".$repository_name.":".$affected_ref_id."] Failures during BitBucket webhook execution (".$fail_cnt."/".$cmd_cnt." failed)!";
+    $mail_subject = "[webhook][".$project_full_path.":".$affected_ref_id."] Failures during GitLab webhook execution (".$fail_cnt."/".$cmd_cnt." failed)!";
     $mail_body = "Dear expert(s),\r\n\r\n";
-    $mail_body .= $fail_cnt."/".$cmd_cnt." commands failed during execution of the webhook commands for ".$project_key."/".$repository_name.":".$affected_ref_id."!\r\n";
+    $mail_body .= $fail_cnt."/".$cmd_cnt." commands failed during execution of the webhook commands for ".$project_full_path.":".$affected_ref_id."!\r\n";
     $mail_body .= "Please check the output below carefully and take appropriate action(s).\r\n\r\n";
     $mail_body .= "--------------------------------------------------------------------------------\r\n";
     $mail_body .= $out."\r\n";

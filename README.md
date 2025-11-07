@@ -1,14 +1,35 @@
-# atlassian-webhooks
+# webhooks
 
-PHP webhook handling code for webhooks from Atlassian tools.
+PHP webhook handling code for webhooks from various tools.
 
 ## Documentation
+
+### `gitlab.php`
+
+Deals with webhooks from GitLab. Webhooks are validated via the defined secret (GitLab token) in the webhook configuration, otherwise, default configuration for a `push` hook is expected (i.e. no customized JSON payload).
+An example JSON configuration is provided in `sample_config/gitlab.json`.
+It has a hierarchical structure with global settings and the project keys as top-level keys.
+Configuration is described [in Git push hooks](#git-push-hooks).
+
+#### Limitations
+
+The code currently handles object kind `push` and event name `push` only, i.e. i.e. pushes.
+It tests that the `ref` matches the configured ID. Otherwise, the code exits with an error.
 
 ### `bitbucket.php`
 
 Deals with webhooks from BitBucket. Webhooks are validated via the defined secret in the webhook configuration.
 An example JSON configuration is provided in `sample_config/bitbucket.json`.
 It has a hierarchical structure with global settings and the project keys as top-level keys.
+Configuration is described [in Git push hooks](#git-push-hooks).
+
+#### Limitations
+
+The code currently handles `repo:refs_changed` event keys only (i.e. pushes) and only looks at the first change.
+It tests that this was an `UPDATE` and that the `refId` matches the configured ID. Otherwise, the code exits with an error.
+
+### Git push hooks
+
 For each project, a repository and ref-id for which the webhook should be executed are given, i.e. in a pseudo-example:
 ```json
 {
@@ -89,11 +110,7 @@ Common use cases will involve triggering other webhooks, or executing commands o
 Note that for the latter use case, you should consider basic safety measures, i.e. firewalling, login only with SSH keys, limit the commands
 which can be executed on the host which is accessed etc.
 
-#### Limitations
-
-The code currently handles `repo:refs_changed` event keys only (i.e. pushes) and only looks at the first change.
-It tests that this was an `UPDATE` and that the `refId` matches the configured ID. Otherwise, the code exits with an error.
 
 ## Disclaimer
 
-This code is not affiliated with [Atlassian](https://www.atlassian.com/) in any way.
+This code is not affiliated with [Atlassian](https://www.atlassian.com/) or [GitLab](https://about.gitlab.com/) in any way.

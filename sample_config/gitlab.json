@@ -1,0 +1,33 @@
+{
+  "alert_mail": "Admin A <admin.a@example.com>, Admin B <admin.b@example.com>",
+  "continue_on_error": false,
+  "background": false,
+  "from_mail": "Webhook script <noreply@example.com>",
+  "reply_to_mail": "support@example.com",
+  "some/gitlab/group": {
+    "test": {
+      "secret": "s0m3Th1n6_Extr3mEly_$ecr3T",
+      "refs/heads/main": {
+        "notice_mail": "Expert A <expert.a@example.com>, Admin A <admin.a@example.com>",
+        "continue_on_error": true,
+        "background": true,
+        "description": "Syncing code, configuration stored in /etc/synccode.conf",
+        "commands": [
+          "echo \"Someone pushed to the master branch of the test repo, go quick and have a look!\" | mail -s \"Test repo push\" someone@example.com",
+          "sleep 30",
+          "/bin/false",
+          "/bin/this_command_does_not_exist_I_believe"
+        ]
+      },
+      "refs/heads/dev": {
+        "notice_mail": "Expert A <expert.a@example.com>, Admin A <admin.a@example.com>",
+        "alert_main": "",
+        "continue_on_error": false,
+        "background": false,
+        "commands": [
+          "echo \"This can never fail!\" | mail -s \"Unbreakable test repo push\" someone@somehwere.else"
+        ]
+      }
+    }
+  }
+}

@@ -1,20 +1,28 @@
 <?php
 
-/* Copyright 2022 University of Bonn
+/* Copyright 2022-2025 University of Bonn
  *
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
+
+if (!isset($report_http_errors)) {
+  $report_http_errors = false;
+}
 
 if (count(get_included_files()) == 1) {
   die("Direct access not permitted.");
 }
 
 function fatal_error($msg, $prefix='') {
+  global $report_http_errors;
   if (ob_get_contents() !== false) {
     // Output buffering is active, flush output.
     // Flush all output:
     ob_end_flush(); // Strange behaviour, will not work
     flush();        // Unless both are called !
+  }
+  if ($report_http_errors === true) {
+    http_response_code(500);
   }
   if ($prefix != '') {
     die("[".$prefix."] ".$msg."\r\n");
