@@ -22,7 +22,7 @@ function fatal_error($msg, $prefix='') {
     flush();        // Unless both are called !
   }
   if ($report_http_errors === true) {
-    http_response_code(500);
+    http_response_code(400);
   }
   if ($prefix != '') {
     die("[".$prefix."] ".$msg."\r\n");
