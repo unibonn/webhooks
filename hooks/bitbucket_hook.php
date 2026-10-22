@@ -126,8 +126,8 @@ ignore_user_abort();
    - plugin.com.atlassian.stash.plugin.hook.connectionTimeout, 10 s
 */
 if ($background) {
-  // Ensure output buffer is clean and zeroed, start fresh buffer.
-  ob_end_clean();
+  // If buffering active, ensure output buffer is clean and zeroed, start fresh buffer.
+  if (ob_get_contents()) ob_end_clean();
   header("Connection: close");
   ob_start();
 }
