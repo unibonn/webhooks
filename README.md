@@ -15,6 +15,7 @@ Configuration is described [in Git push hooks](#git-push-hooks).
 
 The code currently handles object kind `push` and event name `push` only, i.e. i.e. pushes.
 It tests that the `ref` matches the configured ID. Otherwise, the code exits with an error.
+There is no support for GitLab signing tokens yet.
 
 ### `bitbucket.php`
 

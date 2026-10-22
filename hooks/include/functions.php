@@ -36,7 +36,7 @@ function printout(&$out, $msg) {
   echo $msg."\r\n";
 }
 
-function validate_hmac($body, $secret, $x_hub_signature) {
+function validate_bitbucket_hmac($body, $secret, $x_hub_signature) {
   $equal_pos = strpos($x_hub_signature, '=');
   if ($equal_pos === false) {
     // Bad, we expect algo=HMAC

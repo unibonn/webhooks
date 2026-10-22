@@ -54,7 +54,7 @@ $repository_config = extract_from_json($project_config, $repository_name, "Confi
 $hook_secret = extract_from_json($repository_config, "secret", "Configuration::GetSecret", "string");
 
 // Check HMAC.
-validate_hmac($webhook_body, $hook_secret, $x_hub_signature);
+validate_bitbucket_hmac($webhook_body, $hook_secret, $x_hub_signature);
 
 // Extract further information of interest from the webhook.
 $event_key = extract_from_json($webhook, "eventKey", "Webhook", "string");
