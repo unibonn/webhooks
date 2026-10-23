@@ -44,8 +44,8 @@ $signingtoken_validation = false;
 $signingtoken_fudge = 30;
 $webhook_timestamp = $server_env['HTTP_WEBHOOK_TIMESTAMP'] ?? '';
 $webhook_id = $server_env['HTTP_WEBHOOK_ID'] ?? '';
-$webhook_signature = $server_env['HTTP_WEBHOOK_SIGNATURE'] ?? '';
-if ($webhook_timestamp != '' && $webhook_id != '' && $webhook_signature != '') {
+$webhook_signatures = $server_env['HTTP_WEBHOOK_SIGNATURE'] ?? '';
+if ($webhook_timestamp != '' && $webhook_id != '' && $webhook_signatures != '') {
   if (is_numeric($webhook_timestamp) && abs(intval($webhook_timestamp)-time()) <= $signingtoken_fudge) {
     $signingtoken_validation = true;
   }
@@ -90,7 +90,7 @@ if ($signingtoken_validation) {
     $signingtoken_validation = false;
   } else {
     $hook_signingtoken = extract_from_json($repository_config, "signingtoken", "Configuration::GetSigningtoken", "string");
-    $signingtoken_validation = validate_gitlab_hmac($hook_signingtoken, $webhook_id, $webhook_timestamp, $webhook_body, $webhook_signature);
+    $signingtoken_validation = validate_gitlab_hmac($hook_signingtoken, $webhook_id, $webhook_timestamp, $webhook_body, $webhook_signatures);
   }
 }
 // Fall through to GitLab Token validation after this, if needed.

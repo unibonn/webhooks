@@ -7,7 +7,7 @@
   "some/gitlab/group": {
     "test": {
       "signingtoken": "whsec_AIrPUsXdoFsVpVt9jfn0MoF219bX3KQ2O5OhsalTgMA=",
-      "secret": "s0m3Th1n6_Extr3mEly_$ecr3T",
+      "secret": "s0m3Th1n6_Extr3mEly_$ecr3T_deprecated_for_GitLab",
       "refs/heads/main": {
         "notice_mail": "Expert A <expert.a@example.com>, Admin A <admin.a@example.com>",
         "continue_on_error": true,

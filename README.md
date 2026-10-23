@@ -9,14 +9,17 @@ PHP webhook handling code for webhooks from various tools.
 Deals with webhooks from GitLab. Webhooks are validated via the defined secret (GitLab token) in the webhook configuration, otherwise, default configuration for a `push` hook is expected (i.e. no customized JSON payload).
 An example JSON configuration is provided in `sample_config/gitlab.json`.
 It has a hierarchical structure with global settings and the project keys as top-level keys.
-Note that for validation, `signingtoken` is preferred, if both `signingtoken` and `secret` are specified, a fall-through is done to `secret` checking, so for enhanced security, this should be dropped once the migration is complete.
+
+Note that for webhook validation, `signingtoken` is preferred, if both `signingtoken` and `secret` are specified. 
+
+A fall-through is done to `secret` checking if prerequisites are missing (not configured on GitLab or in config), so for enhanced security, this should be dropped once the migration is complete.
+
 Configuration is described [in Git push hooks](#git-push-hooks).
 
 #### Limitations
 
 The code currently handles object kind `push` and event name `push` only, i.e. i.e. pushes.
 It tests that the `ref` matches the configured ID. Otherwise, the code exits with an error.
-There is no complete support for GitLab signing tokens yet, but configuration already accepts them.
 
 ### `bitbucket.php`
 

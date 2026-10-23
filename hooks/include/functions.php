@@ -51,11 +51,32 @@ function validate_bitbucket_hmac($body, $secret, $x_hub_signature) {
   $hook_valid = hash_equals($hook_hmac, $received_hmac);
   if (!$hook_valid) {
     // Invalid webhook signature, ignore the request.
-    fatal_error("Invalid webhook HMAC signature, should be ".$received_hmac." but found ".$hook_hmac."!", "HMAC");
+    fatal_error("Invalid webhook HMAC signature!", "HMAC");
   }
 }
 
-function validate_gitlab_hmac($signingtoken, $webhook_id, $webhook_timestamp, $webhook_body, $webhook_signature) {
+function validate_gitlab_hmac($signingtoken, $webhook_id, $webhook_timestamp, $webhook_body, $webhook_signatures) {
+  $token_prefix = 'whsec_';
+  if (str_starts_with($signingtoken, $token_prefix)) {
+    $base64_token = substr($signingtoken, strlen($token_prefix));
+    // Strict decoding:
+    $decoded_key = base64_decode($base64_token, true);
+    if ($decoded_key === false) {
+      fatal_error("Invalid signingtoken in configuration!", "HMAC");
+    }
+    $signed_payload = implode('.', [$webhook_id, $webhook_timestamp, $webhook_body]);
+    $hook_hmac = hash_hmac('sha256', $signed_payload, $decoded_key, true);
+    $expected_sig = 'v1,'.base64_encode($hook_hmac);
+    $split_signatures = explode(' ', $webhook_signatures);
+    foreach ($split_signatures as $sig) {
+      if (hash_equals($expected_sig, $sig)) {
+        return true;
+      }
+    }
+    return false;
+  } else {
+    fatal_error("Badly formatted signingtoken in configuration!", "HMAC");
+  }
   return false;
 }
 
