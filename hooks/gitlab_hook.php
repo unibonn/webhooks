@@ -91,6 +91,10 @@ if ($signingtoken_validation) {
   } else {
     $hook_signingtoken = extract_from_json($repository_config, "signingtoken", "Configuration::GetSigningtoken", "string");
     $signingtoken_validation = validate_gitlab_hmac($hook_signingtoken, $webhook_id, $webhook_timestamp, $webhook_body, $webhook_signatures);
+    if ($signingtoken_validation !== true) {
+      // Should never happen, if prerequisites broken, exit is done earlier, so no fall-through wanted here.
+      fatal_error("Signing Token signature checking validation failed, ignoring webhook completely!", "hook_validation");
+    }
   }
 }
 // Fall through to GitLab Token validation after this, if needed.
@@ -194,6 +198,12 @@ $cmd_cnt = count($ref_cmds);
 printout($out, "Received valid hook for ".$project_full_path.":".$affected_ref_id.".");
 if ($signingtoken_validation) {
   printout($out, "Hook validated via Signing Token.");
+  if (property_exists($repository_config, "secret")) {
+    printout($out, "Warning: 'secret' still specified in configuration, should be removed to increase security!");
+  }
+  if ($x_gitlab_token != '') {
+    printout($out, "Warning: 'Secret token' still specified in GitLab configuration, should be removed to increase security!");
+  }
 } else if ($gitlabtoken_validation) {
   printout($out, "Hook validated via GitLab Token, please upgrade to Signing Token!");
 }
