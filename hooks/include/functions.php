@@ -1,6 +1,6 @@
 <?php
 
-/* Copyright 2022-2025 University of Bonn
+/* Copyright 2022-2026 University of Bonn
  *
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
@@ -53,6 +53,10 @@ function validate_bitbucket_hmac($body, $secret, $x_hub_signature) {
     // Invalid webhook signature, ignore the request.
     fatal_error("Invalid webhook HMAC signature, should be ".$received_hmac." but found ".$hook_hmac."!", "HMAC");
   }
+}
+
+function validate_gitlab_hmac($signingtoken, $webhook_id, $webhook_timestamp, $webhook_body, $webhook_signature) {
+  return false;
 }
 
 function extract_from_json($json, $json_path, $desc='JSON', $val_type='string') {

@@ -9,13 +9,14 @@ PHP webhook handling code for webhooks from various tools.
 Deals with webhooks from GitLab. Webhooks are validated via the defined secret (GitLab token) in the webhook configuration, otherwise, default configuration for a `push` hook is expected (i.e. no customized JSON payload).
 An example JSON configuration is provided in `sample_config/gitlab.json`.
 It has a hierarchical structure with global settings and the project keys as top-level keys.
+Note that for validation, `signingtoken` is preferred, if both `signingtoken` and `secret` are specified, a fall-through is done to `secret` checking, so for enhanced security, this should be dropped once the migration is complete.
 Configuration is described [in Git push hooks](#git-push-hooks).
 
 #### Limitations
 
 The code currently handles object kind `push` and event name `push` only, i.e. i.e. pushes.
 It tests that the `ref` matches the configured ID. Otherwise, the code exits with an error.
-There is no support for GitLab signing tokens yet.
+There is no complete support for GitLab signing tokens yet, but configuration already accepts them.
 
 ### `bitbucket.php`
 
@@ -94,8 +95,12 @@ The following configuration knobs exist:
    Possible levels in configuration file: Global, Project, Repository, Ref-Id.  
    Example value: `support@example.com`
 
-- `secret` (String, required on Repository level)  
-   Secret configured in Bitbucket, used in HMAC validation of the JSON webhook.  
+- `signingtoken` (String, GitLab-only, this or `secret` required on Repository level, preferred over `secret`)  
+   Signing Token generated in GitLab, used in HMAC validation of the JSON webhook.  
+   Example value: `whsec_AIrPUsXdoFsVpVt9jfn0MoF219bX3KQ2O5OhsalTgMA=`
+
+- `secret` (String, required on Repository level unless GitLab and `signingtoken` specified)  
+   Secret configured in Bitbucket or GitLab, in BitBucket used in HMAC validation of the JSON webhook, for GitLab checked against header secret. For GitLab, you should prefer the `signingtoken`.  
    Example value: `s0m3Th1n6_v3rY_$ecr3T`
 
 - `commands` (Array of strings, required on Ref-id level)  

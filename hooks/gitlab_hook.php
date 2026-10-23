@@ -1,6 +1,6 @@
 <?php
 
-/* Copyright 2025 University of Bonn
+/* Copyright 2025-2026 University of Bonn
  *
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
@@ -32,9 +32,34 @@ if ($test_mode) {
 if ($server_env['REQUEST_METHOD'] !== 'POST') {
   die("Wrong request method, only POST accepted!");
 }
+// Two validations allowed:
+// - SHA256 HMAC Signing Token validation, requires headers:
+//   - webhook-timestamp, should be close to current time
+//   - webhook-id
+//   - webhook-signature
+// - Secret token, requires header X-Gitlab-Token
+
+// Check prerequisites for signingtoken validation, allow 30 seconds time fudge:
+$signingtoken_validation = false;
+$signingtoken_fudge = 30;
+$webhook_timestamp = $server_env['HTTP_WEBHOOK_TIMESTAMP'] ?? '';
+$webhook_id = $server_env['HTTP_WEBHOOK_ID'] ?? '';
+$webhook_signature = $server_env['HTTP_WEBHOOK_SIGNATURE'] ?? '';
+if ($webhook_timestamp != '' && $webhook_id != '' && $webhook_signature != '') {
+  if (is_numeric($webhook_timestamp) && abs(intval($webhook_timestamp)-time()) <= $signingtoken_fudge) {
+    $signingtoken_validation = true;
+  }
+  // Problem with time fudge explicitly not reported for security reasons.
+}
+// Check prerequisites for GitLab Token validation:
+$gitlabtoken_validation = false;
 $x_gitlab_token = $server_env['HTTP_X_GITLAB_TOKEN'] ?? '';
-if ($x_gitlab_token == '') {
-  die("No HTTP_X_GITLAB_TOKEN received!");
+if ($x_gitlab_token != '') {
+  $gitlabtoken_validation = true;
+}
+
+if (!$signingtoken_validation && !$gitlabtoken_validation) {
+  die("Neither prerequisites for signingtoken nor for GitLab token validation are fulfilled!");
 }
 
 // Parse webhook to extract repository name and project key.
@@ -54,15 +79,37 @@ if (strcmp($project_path_only.'/'.$repository_name, $project_full_path) !== 0) {
   fatal_error("Full project path with namespace (".$project_full_path.") does not match path (".$project_path_only.") plus repository name (".$repository_name."), ignoring hook!", "hook_validation");
 }
 
-// Extract corresponding secret key from configuration.
+// Extract corresponding signingtoken or secret key from configuration.
 $project_config = extract_from_json($config, $project_path_only, "Configuration::GetProject", "object");
 $repository_config = extract_from_json($project_config, $repository_name, "Configuration::GetRepository", "object");
-$hook_secret = extract_from_json($repository_config, "secret", "Configuration::GetSecret", "string");
 
-// Check secret.
-if (strcmp($hook_secret, $x_gitlab_token) !== 0) {
-  fatal_error("Could not validate secret token, ignoring hook!", "hook_validation");
+// Webhook validation before going deeper.
+// First, try signingtoken validation (SHA256-HMAC), preferred:
+if ($signingtoken_validation) {
+  if (!property_exists($repository_config, "signingtoken")) {
+    $signingtoken_validation = false;
+  } else {
+    $hook_signingtoken = extract_from_json($repository_config, "signingtoken", "Configuration::GetSigningtoken", "string");
+    $signingtoken_validation = validate_gitlab_hmac($hook_signingtoken, $webhook_id, $webhook_timestamp, $webhook_body, $webhook_signature);
+  }
 }
+// Fall through to GitLab Token validation after this, if needed.
+if (!$signingtoken_validation && $gitlabtoken_validation) {
+  if (!property_exists($repository_config, "secret")) {
+    $gitlabtoken_validation = false;
+  } else {
+    $hook_secret = extract_from_json($repository_config, "secret", "Configuration::GetSecret", "string");
+    // Check secret.
+    if (strcmp($hook_secret, $x_gitlab_token) !== 0) {
+      fatal_error("Could not validate secret token, ignoring hook!", "hook_validation");
+    }
+  }
+}
+if (!$signingtoken_validation && !$gitlabtoken_validation) {
+  fatal_error("Neither signingtoken validation not GitLab token validation successful, ignoring hook!", "hook_validation");
+}
+
+// At least one validation fine at this point, can report which was used in the messages below.
 
 // Extract further information of interest from the webhook.
 $object_kind = extract_from_json($webhook, "object_kind", "Webhook", "string");
@@ -129,7 +176,7 @@ ignore_user_abort();
 
 /* Go to background before command execution. Inspired by:
    https://www.php.net/manual/de/features.connection-handling.php#71172
-   Needed due to limited BitBucket response waiting time:
+   Needed e.g. due to limited BitBucket response waiting time:
    - plugin.webhooks.socket.timeout, 20 s
    - plugin.com.atlassian.stash.plugin.hook.connectionTimeout, 10 s
    May also be helpful for GitLab.
@@ -145,6 +192,11 @@ $fail_cnt = 0;
 $out = "";
 $cmd_cnt = count($ref_cmds);
 printout($out, "Received valid hook for ".$project_full_path.":".$affected_ref_id.".");
+if ($signingtoken_validation) {
+  printout($out, "Hook validated via Signing Token.");
+} else if ($gitlabtoken_validation) {
+  printout($out, "Hook validated via GitLab Token, please upgrade to Signing Token!");
+}
 if (!empty($description)) {
   printout($out, "Description: ".$description);
 }
